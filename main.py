@@ -6,6 +6,7 @@ from langchain.chat_models import init_chat_model
 from langchain.chat_models import init_chat_model
 from typing_extensions import TypedDict
 from pydantic import BaseModel
+from web_operations import serp_search
 
 load_dotenv()
 llm = init_chat_model(model="gpt-4o")
@@ -26,39 +27,52 @@ class State(TypedDict):
 
 
 def google_search(state: State):
-    pass
+    user_question = state.get("user_question", "")
+    print(f"Searching Google for: {user_question}")
+
+    google_results = serp_search(user_question, engine="google") 
+    print(google_results)    
+
+    return {"google_results": google_results}
 
 
 def bing_search(state: State):
-    pass
+    user_question = state.get("user_question", "")
+    print(f"Searching Bing for: {user_question}")
+    bing_results = serp_search(user_question, engine="bing")
+    print(bing_results)
+    return {"bing_results": bing_results}
 
 
 def reddit_search(state: State):
-    pass
+    user_question = state.get("user_question", "")
+    print(f"Searching Reddit for: {user_question}")
+    reddit_results = []
+    return {"reddit_results": reddit_results}
 
 
 def analyze_reddit_posts(state: State):
-    pass
+    return {"selected_reddit_urls": []}
 
 
 def retrieve_reddit_posts(state: State):
-    pass
+    return {"reddit_post_data": []}
 
 
 def analyze_google_results(state: State):
-    pass
+    return {"google_analysis": ""}
 
 
 def analyze_bing_results(state: State):
-    pass
+    return {"bing_analysis": ""}
 
 
 def analyze_reddit_results(state: State):
-    pass
+    return {"reddit_analysis": ""}
 
 
 def sythesize_analyses(state: State):
-    pass
+    return {"final_answer": ""}
 
 
 graph_builder = StateGraph(State)
@@ -73,3 +87,67 @@ graph_builder.add_node("analyze_bing_results", analyze_bing_results)
 graph_builder.add_node("analyze_reddit_results", analyze_reddit_results)
 graph_builder.add_node("sythesize_analyses", sythesize_analyses)
 
+
+graph_builder.add_edge(START, "google_search")
+graph_builder.add_edge(START, "bing_search")
+graph_builder.add_edge(START, "reddit_search")
+
+graph_builder.add_edge("google_search", "analyze_reddit_posts")
+graph_builder.add_edge("bing_search", "analyze_reddit_posts")
+graph_builder.add_edge("reddit_search", "analyze_reddit_posts")
+
+graph_builder.add_edge("analyze_reddit_posts", "retrieve_reddit_posts")
+
+graph_builder.add_edge("retrieve_reddit_posts", "analyze_google_results")
+graph_builder.add_edge("retrieve_reddit_posts", "analyze_bing_results")
+graph_builder.add_edge("retrieve_reddit_posts", "analyze_reddit_results")
+
+graph_builder.add_edge("analyze_google_results", "sythesize_analyses")
+graph_builder.add_edge("analyze_bing_results", "sythesize_analyses")
+graph_builder.add_edge("analyze_reddit_results", "sythesize_analyses")
+
+graph_builder.add_edge("sythesize_analyses", END)
+
+
+graph = graph_builder.compile()
+
+
+def run_chatbot():
+    print("Multi-Source Research Agent")
+    print("Type 'exit' to quit\n")
+
+    while True:
+        user_input = input("Ask me anything: ")
+        if user_input.lower() == "exit":
+            print("Goodbye!")
+            break
+
+        state = {
+            "messages": [{"role": "user", "content": user_input}],
+            "user_question": user_input,
+            "google_results": None,
+            "bing_results": None,
+            "reddit_results": None,
+            "selected_reddit_urls": None,
+            "reddit_post_data": None,
+            "google_analysis": None,
+            "bing_analysis": None,
+            "reddit_analysis": None,
+            "final_answer": None,
+        }
+
+        print("\nStarting parallel research process...")
+        print("Launching Google, Bing, and Reddit searches...\n")
+        final_state = graph.invoke(state)
+
+        if (final_state["final_answer"]):
+            print("\nFinal Answer:")
+            print(final_state["final_answer"])
+        else:
+            print("\nNo answer found. Please try again.")
+
+        print("_" * 80)
+
+
+if __name__ == "__main__":
+    run_chatbot()
